@@ -18,6 +18,7 @@ Pacman agents (in searchAgents.py).
 """
 
 import util
+from util import*
 
 class SearchProblem:
     """
@@ -112,12 +113,44 @@ def depthFirstSearch(problem):
     print("Start:", problem.getStartState())
     print("Is the start a goal?", problem.isGoalState(problem.getStartState()))
     """
-    "*** YOUR CODE HERE ***"
+    visited = set()                             # Conjunto para acompanhar nós visitados
+    stack=util.Stack()                          # Pilha para manter os nós a serem explorados
+    startNode=(problem.getStartState(),[])
+    stack.push(startNode)
+    while not stack.isEmpty():
+        vertex = stack.pop()                    # Desempilha o nó do topo da pilha
+        location=vertex[0]
+        path=vertex[1]
+        if location not in visited:
+            visited.add(location)               # Marca o nó como visitado
+            if problem.isGoalState(location):
+                return path
+            # Empilhe os vizinhos não visitados do nó atual
+            successors=problem.expand(location)
+            for suc in list(successors):
+                if suc[0] not in visited:
+                    stack.push((suc[0],path+[suc[1]]))            
     util.raiseNotDefined()
 
 def breadthFirstSearch(problem):
-    """Search the shallowest nodes in the search tree first."""
-    "*** YOUR CODE HERE ***"
+    queue=util.Queue()                          # Conjunto para acompanhar nós visitados
+    visited=[]                                  # Fila para manter os nós a serem explorados
+    startNode=(problem.getStartState(),[])                           
+    queue.push(startNode)                       # Enfileire o nó inicial
+    while not queue.isEmpty():
+        vertex=queue.pop()                      # Retire o nó da frente da fila
+        location=vertex[0]
+        path=vertex[1]
+        if location not in visited:
+            visited.append(location)
+            if problem.isGoalState(location):
+                return path
+            # Enfileire os vizinhos não visitados do nó atual
+            successors=problem.expand(location)
+            for suc in list(successors):
+                if suc[0] not in visited:
+                    queue.push((suc[0],path + [suc[1]]))
+    return []
     util.raiseNotDefined()
 
 def nullHeuristic(state, problem=None):
@@ -127,13 +160,109 @@ def nullHeuristic(state, problem=None):
     """
     return 0
 
+# def aStarSearch(problem, heuristic=nullHeuristic):
+#     """Search the node that has the lowest combined cost and heuristic first."""
+#     "*** YOUR CODE HERE ***"
+#     util.raiseNotDefined()
+
 def aStarSearch(problem, heuristic=nullHeuristic):
-    """Search the node that has the lowest combined cost and heuristic first."""
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    from util import PriorityQueue
+
+    # Fila de prioridade para armazenar os estados a serem explorados
+    open_list = PriorityQueue()
+
+    # Conjunto para armazenar os estados já explorados
+    closed_set = set()
+
+    # Dicionário para manter o custo mínimo conhecido de cada estado explorado
+    g_scores = {}
+
+    # Contador para quebrar empates entre estados com custos iguais
+    counter = 0
+
+    # Estado inicial
+    start_state = problem.getStartState()
+
+    # Custo inicial é zero
+    initial_g_score = 0
+
+    # Inicialização da fila de prioridade com o estado inicial
+    open_list.push((start_state, [], initial_g_score, counter), initial_g_score)
+
+    # Inicialização do dicionário de custos
+    g_scores[start_state] = initial_g_score
+
+    while not open_list.isEmpty():
+        current_state, path, current_g_score, _ = open_list.pop()
+
+        # Verifica se o estado atual é o estado objetivo
+        if problem.isGoalState(current_state):
+            return path
+
+        # Verifica se o estado já foi explorado
+        if current_state in closed_set:
+            continue  # Ignorar estados repetidos
+
+        # Marca o estado como explorado
+        closed_set.add(current_state)
+
+        # Expande os sucessores do estado atual
+        for successor_state, action, step_cost in problem.expand(current_state):
+            new_path = path + [action]
+            new_g_score = current_g_score + step_cost
+
+            # Verifica se o estado não foi explorado e se o novo caminho é melhor
+            if (successor_state not in closed_set and
+                (successor_state not in g_scores or new_g_score < g_scores[successor_state])):
+                counter += 1
+                open_list.push((successor_state, new_path, new_g_score, counter), new_g_score + heuristic(successor_state, problem))
+                g_scores[successor_state] = new_g_score
+
+    return []  # Se chegarmos aqui, não encontramos um caminho válido
+
+def iterativeDeepeningSearch(problem):
+    """
+    Perform Depth-First Iterative Deepening Search (IDS).
+    Returns a solution if found.
+    """
+    for depth in range(1, sys.maxsize):  # Usar sys.maxsize como profundidade máxima
+        result = depthLimitedSearch(problem, depth)
+        if result is not None:
+            return result
+
+def depthLimitedSearch(problem, limit):
+    """
+    Perform Depth-Limited Search up to a given depth limit.
+    Returns a solution if found or None if the limit is reached.
+    """
+    visited = set()                       # Conjunto para acompanhar nós visitados
+    stack = util.Stack()                  # Pilha para manter os nós a serem explorados
+    startNode = (problem.getStartState(), [])
+    stack.push(startNode)
+
+    while not stack.isEmpty():
+        vertex = stack.pop()               # Desempilha o nó do topo da pilha
+        location = vertex[0]
+        path = vertex[1]
+
+        if location not in visited:
+            visited.add(location)          # Marca o nó como visitado
+
+            if problem.isGoalState(location):
+                return path
+
+            # Empilhe os vizinhos não visitados do nó atual
+            successors = problem.expand(location)
+            for suc in list(successors):
+                if suc[0] not in visited and len(path) < limit:  # Verifica a profundidade limite
+                    stack.push((suc[0], path + [suc[1]]))
+
+    return None
+
 
 
 # Abbreviations
 bfs = breadthFirstSearch
 dfs = depthFirstSearch
 astar = aStarSearch
+ids=iterativeDeepeningSearch

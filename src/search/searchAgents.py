@@ -314,14 +314,14 @@ class CornersProblem(search.SearchProblem):
         Returns the start state (in your state space, not the full Pacman state
         space)
         """
-        "*** YOUR CODE HERE ***"
+        return (self.startingPosition, self.corners)
         util.raiseNotDefined()
 
     def isGoalState(self, state):
         """
         Returns whether this search state is a goal state of the problem.
         """
-        "*** YOUR CODE HERE ***"
+        return len(state[1]) == 0  # Todos os cantos foram visitados
         util.raiseNotDefined()
 
     def expand(self, state):
@@ -334,25 +334,34 @@ class CornersProblem(search.SearchProblem):
             state, 'action' is the action required to get there, and 'stepCost'
             is the incremental cost of expanding to that child
         """
-
+        position, remaining_corners = state
         children = []
         for action in self.getActions(state):
             # Add a child state to the child list if the action is legal
             # You should call getActions, getActionCost, and getNextState.
-            "*** YOUR CODE HERE ***"
+            x, y = position
+            dx, dy = Actions.directionToVector(action)
+            next_x, next_y = int(x + dx), int(y + dy)
+            next_position = (next_x, next_y)
+            next_corners = tuple(corner for corner in remaining_corners if corner != next_position)
+            children.append(((next_position, next_corners), action, 1))
 
         self._expanded += 1 # DO NOT CHANGE
         return children
 
     def getActions(self, state):
+        position, _ = state
         possible_directions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
         valid_actions_from_state = []
+
         for action in possible_directions:
-            x, y = state[0]
+            x, y = position
             dx, dy = Actions.directionToVector(action)
-            nextx, nexty = int(x + dx), int(y + dy)
-            if not self.walls[nextx][nexty]:
+            next_x, next_y = int(x + dx), int(y + dy)
+
+            if not self.walls[next_x][next_y]:
                 valid_actions_from_state.append(action)
+
         return valid_actions_from_state
 
     def getActionCost(self, state, action, next_state):
@@ -386,23 +395,23 @@ class CornersProblem(search.SearchProblem):
 
 
 def cornersHeuristic(state, problem):
-    """
-    A heuristic for the CornersProblem that you defined.
+    corners = problem.corners  # Coordenadas das esquinas não visitadas
+    walls = problem.walls  # Paredes do labirinto
 
-      state:   The current search state
-               (a data structure you chose in your search problem)
+    # Obtém a posição atual do Pac-Man e as esquinas não visitadas
+    pacman_position, corners_visited = state
 
-      problem: The CornersProblem instance for this layout.
+    # Encontra as esquinas não visitadas
+    unvisited_corners = [corner for corner in corners if corner not in corners_visited]
 
-    This function should always return a number that is a lower bound on the
-    shortest path from the state to a goal of the problem; i.e.  it should be
-    admissible (as well as consistent).
-    """
-    corners = problem.corners # These are the corner coordinates
-    walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
+    if not unvisited_corners:
+        return 0  # Todas as esquinas já foram visitadas, heurística zero
 
-    "*** YOUR CODE HERE ***"
-    return 0 # Default to trivial solution
+    # Calcula a distância mínima entre a posição atual do Pac-Man e a esquina mais próxima não visitada
+    min_distance = min([util.manhattanDistance(pacman_position, corner) for corner in unvisited_corners])
+
+    return min_distance
+
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -517,8 +526,17 @@ def foodHeuristic(state, problem):
     problem.heuristicInfo['wallCount']
     """
     position, foodGrid = state
-    "*** YOUR CODE HERE ***"
-    return 0
+
+    # Obtém as coordenadas de todas as comidas no grid
+    food_list = foodGrid.asList()
+
+    if not food_list:
+        return 0  # Se não houver comida, a heurística é zero
+
+    # Calcula a distância de Manhattan até a comida mais distante
+    max_distance = max([util.manhattanDistance(position, food) for food in food_list])
+
+    return max_distance
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -537,6 +555,20 @@ class ClosestDotSearchAgent(SearchAgent):
         self.actionIndex = 0
         print('Path found with cost %d.' % len(self.actions))
 
+    # def findPathToClosestDot(self, gameState):
+    #     """
+    #     Returns a path (a list of actions) to the closest dot, starting from
+    #     gameState.
+    #     """
+    #     # Here are some useful elements of the startState
+    #     startPosition = gameState.getPacmanPosition()
+    #     food = gameState.getFood()
+    #     walls = gameState.getWalls()
+    #     problem = AnyFoodSearchProblem(gameState)
+
+    #     "*** YOUR CODE HERE ***"
+    #     util.raiseNotDefined()
+    
     def findPathToClosestDot(self, gameState):
         """
         Returns a path (a list of actions) to the closest dot, starting from
@@ -546,10 +578,38 @@ class ClosestDotSearchAgent(SearchAgent):
         startPosition = gameState.getPacmanPosition()
         food = gameState.getFood()
         walls = gameState.getWalls()
+
+        # Create an AnyFoodSearchProblem using the gameState
         problem = AnyFoodSearchProblem(gameState)
 
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # Initialize the explored set to keep track of visited states
+        explored = set()
+
+        # Initialize a queue for BFS as a list
+        queue = []
+        queue.append([(startPosition, "Stop", 0)])  # Initial state with position, action, and cost
+
+        while queue:
+            path = queue.pop(0)
+            current_state, current_action, current_cost = path[-1]
+
+            if problem.isGoalState(current_state):
+                # Found a path to the closest dot
+                actions = [action for (_, action, _) in path[1:]]  # Extract actions
+                return actions
+
+            if current_state in explored:
+                continue
+
+            explored.add(current_state)
+
+            for successor_state, action, step_cost in problem.expand(current_state):
+                if successor_state not in explored:
+                    # Extend the path with the successor state, action, and cost
+                    new_path = path + [(successor_state, action, step_cost)]
+                    queue.append(new_path)
+
+        return []
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
@@ -583,6 +643,8 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         complete the problem definition.
         """
         x,y = state
+
+        return self.food[x][y]
 
         "*** YOUR CODE HERE ***"
         util.raiseNotDefined()
